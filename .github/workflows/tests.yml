@@ -8,6 +8,10 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-22.04
+    env:
+      extblas: 0.4.1
+      extcl: 0.2.1
+      extclblast: 0.2.1
 
     strategy:
       fail-fast: true
@@ -29,28 +33,42 @@ jobs:
 
       - name: Install OpenBLAS
         run: |
-          sudo apt install -y libopenblas-base liblapacke
-          wget https://github.com/rindow/rindow-openblas/releases/download/0.4.0/rindow-openblas-php8.3_0.4.0-1+ubuntu22.04_amd64.deb
-          sudo apt install -y ./rindow-openblas-php8.3_0.4.0-1+ubuntu22.04_amd64.deb
+          FILENAME=rindow-openblas-${extblas}-linux-amd64
+          sudo apt install -y libopenblas0-openmp liblapacke
+          wget https://github.com/rindow/rindow-openblas/releases/download/${extblas}/${FILENAME}.zip
+          unzip ${FILENAME}.zip
+          sudo apt install -y ./${FILENAME}/php${{ matrix.php }}/rindow-openblas-php${{ matrix.php }}_${extblas}_amd64.deb
 
-      #- name: Install OpenCL
-      #  run: |
-      #    sudo apt install -y clinfo
-      #    sudo apt install -y pocl-opencl-icd
-      #    sh clblast-packdeb.sh
-      #    sudo apt install ./clblast_1.6.2-1+ubuntu22.04_amd64.deb
-      #    wget https://github.com/rindow/rindow-opencl/releases/download/0.2.0/rindow-opencl-php8.3_0.2.0-1+ubuntu22.04_amd64.deb
-      #    sudo apt install -y ./rindow-opencl-php8.3_0.2.0-1+ubuntu22.04_amd64.deb
-      #    wget https://github.com/rindow/rindow-clblast/releases/download/0.2.0/rindow-clblast-php8.3_0.2.0-1+ubuntu22.04_amd64.deb
-      #    sudo apt install -y ./rindow-clblast-php8.3_0.2.0-1+ubuntu22.04_amd64.deb
+      - name: Install OpenCL for phpstan only
+        run: |
+          sudo apt install -y clinfo
+          sudo apt install -y pocl-opencl-icd
+          sudo apt install -y libclblast1
+          FILENAME=rindow-opencl-${extcl}-linux-amd64
+          wget https://github.com/rindow/rindow-opencl/releases/download/${extcl}/${FILENAME}.zip
+          unzip ${FILENAME}.zip
+          sudo apt install -y ./${FILENAME}/php${{ matrix.php }}/rindow-opencl-php${{ matrix.php }}_${extcl}_amd64.deb
+          FILENAME=rindow-clblast-${extclblast}-linux-amd64
+          wget https://github.com/rindow/rindow-clblast/releases/download/${extclblast}/${FILENAME}.zip
+          unzip ${FILENAME}.zip
+          sudo apt install -y ./${FILENAME}/php${{ matrix.php }}/rindow-clblast-php${{ matrix.php }}_${extclblast}_amd64.deb
 
       #- name: Composer
       #  uses: php-actions/composer@v6
       #  with:
       #    php_version: ${{ matrix.php }}
+      #    php_extensions: rindow_openblas
       
       - name: Composer
-        run: composer update
+        run: composer require phpstan/phpstan
+
+      - name: PHP Static Analysys
+        run: vendor/bin/phpstan
+
+      - name: Uninstall OpenCL for pocl-opencl error on phpunit 
+        run: |
+          sudo apt remove rindow-clblast-php${{ matrix.php }}
+          sudo apt remove rindow-opencl-php${{ matrix.php }}
 
       #- name: PHPUnit Tests
       #  uses: php-actions/phpunit@v3
@@ -58,7 +76,7 @@ jobs:
       #    configuration: tests/phpunit.xml
       #    version: 10.5
       #    php_version: ${{ matrix.php }}
-      #    filter: ReleaseTest
+      #    php_extensions: rindow_openblas
 
       - name: PHPUnit Tests.
         run: phpunit -c tests
